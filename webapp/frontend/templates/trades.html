@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Trades · FKB{% endblock %}
+{% block content %}
+  <h1>Trades</h1>
+  {% if trades %}
+  <table>
+    <thead>
+      <tr><th>Opened</th><th>Symbol</th><th>Dir</th><th>Entry</th><th>SL</th><th>TP</th><th>Status</th><th>PnL</th></tr>
+    </thead>
+    <tbody>
+      {% for t in trades %}
+      <tr>
+        <td>{{ t.opened_at }}</td><td>{{ t.symbol }}</td>
+        <td>{{ "long" if t.direction == 1 else "short" }}</td>
+        <td>{{ t.entry_price }}</td><td>{{ t.sl }}</td><td>{{ t.tp }}</td>
+        <td>{{ t.status }}</td>
+        <td>{{ t.pnl if t.pnl is not none else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty">No trades yet.</div>
+  {% endif %}
+{% endblock %}

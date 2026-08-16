@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+data/fkb.db
+data/fkb.db-wal
+data/fkb.db-shm
+data/screenshots/*
+!data/screenshots/.gitkeep
+smc_results.csv
+.venv/
+venv/

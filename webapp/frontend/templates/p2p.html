@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}P2P · FKB{% endblock %}
+{% block content %}
+  <h1>P2P transactions</h1>
+  <p class="empty">Record-keeping only — logs deposits/withdrawals you facilitate as a Binance P2P agent. Does not move money.</p>
+  {% if transactions %}
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Counterparty</th><th>Type</th><th>Currency</th><th>Amount</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr>
+        <td>{{ t.created_at }}</td><td>{{ t.counterparty_name }}</td><td>{{ t.type }}</td>
+        <td>{{ t.currency }}</td><td>{{ t.amount }}</td><td>{{ t.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty">No P2P transactions logged yet.</div>
+  {% endif %}
+{% endblock %}

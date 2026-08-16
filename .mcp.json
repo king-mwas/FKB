@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mt5": {
+      "command": "metatrader-mcp-server",
+      "args": ["--transport", "stdio"],
+      "env": {
+        "LOGIN": "${MT5_LOGIN_DEMO}",
+        "PASSWORD": "${MT5_PASSWORD_DEMO}",
+        "SERVER": "${MT5_SERVER_DEMO}"
+      }
+    }
+  }
+}

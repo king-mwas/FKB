@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · FKB{% endblock %}
+{% block content %}
+  <h1>Dashboard <span id="engine-badge" hx-get="/partials/health" hx-trigger="load, every 10s" hx-swap="innerHTML"></span></h1>
+
+  <div id="summary-cards" hx-get="/partials/summary" hx-trigger="load, every 10s" hx-swap="innerHTML">
+    <div class="empty">Loading summary…</div>
+  </div>
+
+  <h2>Accounts</h2>
+  {% if accounts %}
+  <table>
+    <thead>
+      <tr><th>Broker</th><th>Mode</th><th>Label</th><th>Equity</th><th>Balance</th><th>Allocated capital</th></tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.broker }}</td><td>{{ a.mode }}</td><td>{{ a.label }}</td>
+        <td>{{ "%.2f"|format(a.equity) }}</td><td>{{ "%.2f"|format(a.balance) }}</td>
+        <td>{{ "%.2f"|format(a.allocated_capital) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty">No accounts yet — the live engine registers one on first connect (MT5 demo/live, Binance testnet/live).</div>
+  {% endif %}
+
+  <h2>Live signal feed</h2>
+  <div id="signal-feed" hx-get="/partials/recent-signals" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <div class="empty">Loading…</div>
+  </div>
+{% endblock %}

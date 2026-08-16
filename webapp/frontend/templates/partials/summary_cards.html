@@ -1,0 +1,22 @@
+<div class="cards">
+  <div class="card">
+    <div class="label">Total PnL</div>
+    <div class="value {{ 'pos' if summary.total_pnl >= 0 else 'neg' }}">{{ "%.2f"|format(summary.total_pnl) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Total trades</div>
+    <div class="value">{{ summary.total_trades }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Weekly PnL</div>
+    <div class="value {{ 'pos' if summary.weekly_pnl >= 0 else 'neg' }}">{{ "%.2f"|format(summary.weekly_pnl) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Monthly PnL</div>
+    <div class="value {{ 'pos' if summary.monthly_pnl >= 0 else 'neg' }}">{{ "%.2f"|format(summary.monthly_pnl) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Win rate</div>
+    <div class="value">{{ summary.win_rate }}%</div>
+  </div>
+</div>
