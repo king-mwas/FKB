@@ -12,7 +12,7 @@ from datetime import datetime
 from db.base import get_session
 from db.crud import get_or_create_account, set_setting
 from fkb_strategy.config import BINANCE_SYMBOLS, SYMBOLS
-from live_engine import binance_client, config, mt5_client
+from live_engine import binance_client, config, executor, mt5_client
 from live_engine.confidence import score_signal
 from live_engine.detector import poll_track
 
@@ -59,9 +59,15 @@ def run_once(track: dict) -> int:
         account.margin_used = info["margin"]
         account.last_synced_at = datetime.utcnow()
 
+        if broker == "mt5":
+            try:
+                executor.sync_open_trades(session, account)
+            except Exception as e:
+                print(f"  ! {track['name']} sync_open_trades: {e}")
+
         for symbol in b["symbols"]:
             try:
-                new_signals = poll_track(session, account.id, track, symbol)
+                new_signals, ltf_df = poll_track(session, account.id, track, symbol)
             except Exception as e:
                 print(f"  ! {track['name']} {symbol}: {e}")
                 continue
@@ -87,6 +93,14 @@ def run_once(track: dict) -> int:
                     print(f"    -> confidence {sig.confidence_score} (below threshold)")
                 else:
                     print(f"    -> confidence scoring skipped: {sig.confidence_error}")
+
+            # Execution (Phase 5) is MT5-only for now -- see executor.py's
+            # module docstring for why Binance stays inert here.
+            if broker == "mt5":
+                try:
+                    executor.check_fills_and_execute(session, account, track, symbol, ltf_df)
+                except Exception as e:
+                    print(f"  ! {track['name']} {symbol} check_fills_and_execute: {e}")
 
         set_setting(session, f"engine_heartbeat:{broker}:{track['name']}",
                     datetime.utcnow().isoformat())
