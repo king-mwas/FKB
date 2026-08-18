@@ -13,7 +13,7 @@ Claude Code to recall it, or check `C:\Users\HP\.claude\plans\iterative-singing-
 fkb_strategy/   shared strategy logic (broker-agnostic) — used by BOTH backtester and live_engine
 backtester/     offline historical sweep — smc_backtest.py
 live_engine/    standalone service: poll MT5/Binance -> detect -> Claude confidence -> execute -> log
-db/             shared SQLAlchemy models (SQLite, WAL mode)
+db/             shared SQLAlchemy models (Supabase/Postgres, or SQLite fallback)
 webapp/         FastAPI + Jinja2/htmx site: dashboard, signals, trades, journal, screenshots, P2P log
 data/           fkb.db (SQLite) + uploaded screenshots (gitignored)
 scripts/        one-off setup/utility scripts
@@ -23,7 +23,9 @@ scripts/        one-off setup/utility scripts
 
 1. `pip install -r requirements.txt`
 2. Copy `.env.example` to `.env` and fill in real values (Anthropic API key,
-   MT5 demo/live credentials, Binance testnet/live keys).
+   MT5 demo/live credentials, Binance testnet/live keys). For the database,
+   set `DATABASE_URL` to use Supabase, or leave it unset for local SQLite —
+   see [Database (Supabase / SQLite)](#database-supabase--sqlite) below.
 3. **Open your MT5 terminal and log in** before running anything that
    touches MT5 — the `MetaTrader5` Python package only works against a
    locally running, logged-in terminal. This machine currently has no
@@ -33,6 +35,53 @@ scripts/        one-off setup/utility scripts
    often suffix symbols, e.g. `EURUSD.`) — run `python scripts/export_mt5_symbols.py`
    once written, or check manually, and update `fkb_strategy/config.py`'s
    `SYMBOLS` dict if they differ from `XAUUSD`/`EURUSD`/`USDJPY`.
+
+## Database (Supabase / SQLite)
+
+The app reads and writes through SQLAlchemy (`db/models.py`, `db/crud.py`).
+The backend is chosen by one env var:
+
+- **`DATABASE_URL` set** → Postgres (Supabase). All data — accounts,
+  signals, trades, journal entries, screenshots, equity snapshots, the P2P
+  log — lives in your Supabase project and is browsable directly in
+  Supabase's **Table Editor**, not just through this app's pages.
+- **`DATABASE_URL` unset** → local SQLite at `FKB_DB_PATH` (default
+  `./data/fkb.db`), WAL mode. This is the zero-setup fallback; nothing
+  below is required to run the app.
+
+The live engine needs a running MT5 terminal (Windows), so in practice both
+the engine and the webapp run on that same machine and connect to Supabase
+from there. A hosted build/CI box generally *can't* reach Supabase's
+Postgres port (it's IPv6-only on the direct host, and raw-TCP database
+connections are commonly firewalled) — use the pooler and run from the
+machine the app actually lives on.
+
+### One-time Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com) and set a
+   database password.
+2. Grab the **session-mode pooler** connection string: project's **Connect**
+   dialog (or **Project Settings → Database**). It's IPv4 and behaves like a
+   normal persistent connection, which suits the always-running engine +
+   webapp. Replace `[YOUR-PASSWORD]` with your database password. (Ignore
+   the Prisma "ORM" tab's `DIRECT_URL`/`DATABASE_URL` split — this app uses
+   SQLAlchemy and reads only `DATABASE_URL`.)
+3. Put it in `.env` (never commit `.env` — it's gitignored):
+
+   ```
+   DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+
+4. `pip install -r requirements.txt` (includes `psycopg2-binary`).
+5. Create the tables, either way:
+   - `python scripts/init_db.py` — creates all 8 tables directly via
+     SQLAlchemy (non-destructive; safe to re-run), **or**
+   - paste `db/schema.sql` into Supabase's **SQL Editor** and run it.
+6. Open Supabase's **Table Editor** to confirm the tables appear. From then
+   on, every row the engine and webapp write shows up there live.
+
+`db/schema.sql` is generated from `db/models.py` and kept in sync with it —
+if the models change, regenerate it rather than hand-editing.
 
 ## Run the backtester
 
