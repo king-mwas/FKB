@@ -119,6 +119,12 @@ def main_loop():
         for track in ALL_TRACKS:
             key = (track["broker"], track["name"])
             if now >= next_due[key]:
-                run_once(track)
+                try:
+                    run_once(track)
+                except Exception as e:
+                    # One broker being unreachable (e.g. MT5 terminal not
+                    # open) must not take down other tracks/brokers sharing
+                    # this loop -- log and retry at the track's own cadence.
+                    print(f"  ! {track['broker']}:{track['name']} run_once failed: {e}")
                 next_due[key] = now + track["poll_s"]
         time.sleep(TICK_S)

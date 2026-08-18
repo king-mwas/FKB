@@ -16,8 +16,11 @@ def main():
     init_db()
     if "--once" in sys.argv:
         for track in ALL_TRACKS:
-            n = run_once(track)
-            print(f"[{track['name']}] poll complete: {n} new signal(s)")
+            try:
+                n = run_once(track)
+                print(f"[{track['name']}] poll complete: {n} new signal(s)")
+            except Exception as e:
+                print(f"[{track['name']}] poll failed: {e}")
         return
     main_loop()
 
