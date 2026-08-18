@@ -1,3 +1,3 @@
 <span class="badge {{ 'ok' if health.status == 'ok' else 'degraded' }}">
-  {{ health.status }}{% if not health.engines %} · engine not running{% endif %}
+  engine · {{ health.status }}{% if not health.engines %} · not running{% endif %}
 </span>

@@ -1,19 +1,23 @@
+{% import "partials/_macros.html" as m %}
 {% if signals %}
+<div class="table-wrap">
 <table>
   <thead>
-    <tr><th>Time</th><th>Symbol</th><th>Variant</th><th>Kind</th><th>Confidence</th><th>Status</th></tr>
+    <tr><th>Time</th><th>Symbol</th><th>Variant</th><th>Kind</th><th>Dir</th><th>Confidence</th><th>Status</th></tr>
   </thead>
   <tbody>
     {% for s in signals %}
     <tr>
-      <td>{{ s.created_at }}</td><td>{{ s.symbol }}</td><td>{{ s.variant }}</td>
-      <td>{{ s.event_kind }}</td>
-      <td>{{ s.confidence_score if s.confidence_score is not none else "—" }}</td>
-      <td>{{ s.status }}</td>
+      <td class="mono">{{ s.created_at }}</td><td class="mono">{{ s.symbol }}</td><td>{{ s.variant }}</td>
+      <td class="mono">{{ s.event_kind }}</td>
+      <td>{{ m.direction_pill(s.direction) }}</td>
+      <td class="mono">{{ s.confidence_score if s.confidence_score is not none else "—" }}</td>
+      <td>{{ m.status_chip(s.status) }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
 <div class="empty">No signals yet — nothing to show until the live engine (Phase 3) is running.</div>
 {% endif %}
