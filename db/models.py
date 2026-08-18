@@ -1,6 +1,6 @@
 """
 Shared DB schema — single source of truth for both live_engine and webapp.
-SQLite, WAL mode (see db/base.py).
+Postgres (Supabase) -- see db/base.py.
 """
 
 from datetime import datetime
@@ -30,7 +30,7 @@ class Account(Base):
     # Owner-editable cap on how much capital this account's sizing may use —
     # the "increase/decrease margin" control from the dashboard.
     allocated_capital: Mapped[float] = mapped_column(Float, default=0.0)
-    last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     trades: Mapped[list["Trade"]] = relationship(back_populates="account")
     signals: Mapped[list["Signal"]] = relationship(back_populates="account")
@@ -45,7 +45,7 @@ class Signal(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     symbol: Mapped[str] = mapped_column(String(32))
     ltf: Mapped[str] = mapped_column(String(8))
@@ -54,7 +54,7 @@ class Signal(Base):
     variant: Mapped[str] = mapped_column(String(32))
     event_kind: Mapped[str] = mapped_column(String(8))        # "BOS" | "CHOCH"
     direction: Mapped[int] = mapped_column(Integer)            # 1 | -1
-    bar_time: Mapped[datetime] = mapped_column(DateTime)
+    bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     htf_bias: Mapped[int] = mapped_column(Integer, default=0)
     session_ok: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -92,8 +92,8 @@ class Trade(Base):
     tp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lots_or_qty: Mapped[float] = mapped_column(Float)
 
-    opened_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     exit_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pnl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     r_multiple: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -116,7 +116,7 @@ class JournalEntry(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     trade_id: Mapped[Optional[int]] = mapped_column(ForeignKey("trades.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     author: Mapped[str] = mapped_column(String(64), default="owner")
     title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     body: Mapped[str] = mapped_column(Text)
@@ -133,7 +133,7 @@ class Screenshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     trade_id: Mapped[Optional[int]] = mapped_column(ForeignKey("trades.id"), nullable=True)
     journal_entry_id: Mapped[Optional[int]] = mapped_column(ForeignKey("journal_entries.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     file_path: Mapped[str] = mapped_column(String(500))
     caption: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
@@ -146,7 +146,7 @@ class EquitySnapshot(Base):
     __tablename__ = "equity_snapshots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     equity: Mapped[float] = mapped_column(Float)
     balance: Mapped[float] = mapped_column(Float)
@@ -159,7 +159,7 @@ class P2PTransaction(Base):
     __tablename__ = "p2p_transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     counterparty_name: Mapped[str] = mapped_column(String(120))
     contact: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     type: Mapped[str] = mapped_column(String(16))               # "deposit" | "withdrawal"
