@@ -69,3 +69,8 @@ MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOU
 CONFIDENCE_TIMEOUT_S = 30.0
 
 MAX_CONCURRENT_PER_SYMBOL = 1
+
+# --------------------------------------------------------------- execution
+
+ORDER_DEVIATION_POINTS = int(os.environ.get("ORDER_DEVIATION_POINTS", "20"))
+EXECUTION_MAGIC = int(os.environ.get("EXECUTION_MAGIC", "990321"))

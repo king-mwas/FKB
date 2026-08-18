@@ -12,7 +12,7 @@ from datetime import datetime
 from db.base import get_session
 from db.crud import get_or_create_account, set_setting
 from fkb_strategy.config import BINANCE_SYMBOLS, SYMBOLS
-from live_engine import binance_client, config, mt5_client
+from live_engine import binance_client, config, execution, mt5_client
 from live_engine.confidence import score_signal
 from live_engine.detector import poll_track
 
@@ -83,6 +83,10 @@ def run_once(track: dict) -> int:
                 if sig.status == "confidence_pass":
                     print(f"    -> confidence {sig.confidence_score} (PASS, threshold "
                           f"{config.CONFIDENCE_THRESHOLD})")
+                    if broker == "mt5":
+                        execution.try_execute(session, sig, account)
+                    else:
+                        print("    -> execution not yet implemented for binance (Phase 8)")
                 elif sig.confidence_score is not None:
                     print(f"    -> confidence {sig.confidence_score} (below threshold)")
                 else:
