@@ -9,12 +9,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db.base import DB_PATH, init_db
+from db.base import DATABASE_URL, DB_PATH, init_db
 
 
 def main():
     init_db()
-    print(f"DB ready at {DB_PATH}")
+    if DATABASE_URL:
+        print("DB ready — connected to Postgres (Supabase).")
+    else:
+        print(f"DB ready — local SQLite at {DB_PATH} (DATABASE_URL not set).")
 
 
 if __name__ == "__main__":
