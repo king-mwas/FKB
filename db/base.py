@@ -10,8 +10,16 @@ app keeps working before Supabase is wired up.
 import os
 from contextlib import contextmanager
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+# Load .env here (not only in live_engine/config.py) so every entry point
+# that touches the DB -- the webapp, scripts/init_db.py, ad-hoc scripts --
+# picks up DATABASE_URL, not just the live engine. Without this, running
+# init_db.py or the webapp would silently ignore a DATABASE_URL set only in
+# .env and fall back to SQLite.
+load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = os.environ.get("FKB_DB_PATH", "./data/fkb.db")
