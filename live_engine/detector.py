@@ -45,10 +45,13 @@ def compute_htf_bias(htf_df: pd.DataFrame, swing_lookback: int) -> pd.Series:
     return pd.Series(trend, index=htf.index).shift(1)
 
 
-def poll_track(session: Session, account_id: int, track: dict, symbol: str) -> list:
+def poll_track(session: Session, account_id: int, track: dict, symbol: str) -> tuple:
     """Fetch fresh data for one (track, symbol), detect structure events,
     arm any variant whose rules are satisfied, and create Signal rows for
-    ones not already seen. Returns the list of newly created Signal rows."""
+    ones not already seen. Returns (new_signals, ltf_df) -- the ltf_df is
+    handed back so executor.check_fills_and_execute() can re-check
+    already-armed setups against the same freshly fetched window instead
+    of re-fetching it."""
     ltf, htf = track["ltf"], track["htf"]
     load_recent = LOADERS[track["broker"]]
 
@@ -92,4 +95,4 @@ def poll_track(session: Session, account_id: int, track: dict, symbol: str) -> l
             )
             new_signals.append(signal)
 
-    return new_signals
+    return new_signals, ltf_df

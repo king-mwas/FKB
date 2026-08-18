@@ -1,0 +1,8 @@
+{% macro direction_pill(direction) %}
+<span class="pill {{ 'long' if direction == 1 else 'short' }}">{{ 'Long' if direction == 1 else 'Short' }}</span>
+{% endmacro %}
+
+{% macro status_chip(status) %}
+{%- set emph_statuses = ['confidence_pass', 'filled', 'open'] -%}
+<span class="chip {{ 'emph' if status in emph_statuses else '' }}">{{ status }}</span>
+{% endmacro %}

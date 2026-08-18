@@ -14,6 +14,7 @@ certifi>=2024.0
 
 # --- database ---
 SQLAlchemy>=2.0
+psycopg2-binary>=2.9
 
 # --- webapp ---
 fastapi>=0.110

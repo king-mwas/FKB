@@ -12,7 +12,7 @@ from datetime import datetime
 from db.base import get_session
 from db.crud import get_or_create_account, set_setting
 from fkb_strategy.config import BINANCE_SYMBOLS, SYMBOLS
-from live_engine import binance_client, config, execution, mt5_client
+from live_engine import binance_client, config, executor, mt5_client
 from live_engine.confidence import score_signal
 from live_engine.detector import poll_track
 
@@ -59,9 +59,15 @@ def run_once(track: dict) -> int:
         account.margin_used = info["margin"]
         account.last_synced_at = datetime.utcnow()
 
+        if broker == "mt5":
+            try:
+                executor.sync_open_trades(session, account)
+            except Exception as e:
+                print(f"  ! {track['name']} sync_open_trades: {e}")
+
         for symbol in b["symbols"]:
             try:
-                new_signals = poll_track(session, account.id, track, symbol)
+                new_signals, ltf_df = poll_track(session, account.id, track, symbol)
             except Exception as e:
                 print(f"  ! {track['name']} {symbol}: {e}")
                 continue
@@ -83,14 +89,18 @@ def run_once(track: dict) -> int:
                 if sig.status == "confidence_pass":
                     print(f"    -> confidence {sig.confidence_score} (PASS, threshold "
                           f"{config.CONFIDENCE_THRESHOLD})")
-                    if broker == "mt5":
-                        execution.try_execute(session, sig, account)
-                    else:
-                        print("    -> execution not yet implemented for binance (Phase 8)")
                 elif sig.confidence_score is not None:
                     print(f"    -> confidence {sig.confidence_score} (below threshold)")
                 else:
                     print(f"    -> confidence scoring skipped: {sig.confidence_error}")
+
+            # Execution (Phase 5) is MT5-only for now -- see executor.py's
+            # module docstring for why Binance stays inert here.
+            if broker == "mt5":
+                try:
+                    executor.check_fills_and_execute(session, account, track, symbol, ltf_df)
+                except Exception as e:
+                    print(f"  ! {track['name']} {symbol} check_fills_and_execute: {e}")
 
         set_setting(session, f"engine_heartbeat:{broker}:{track['name']}",
                     datetime.utcnow().isoformat())
@@ -109,6 +119,12 @@ def main_loop():
         for track in ALL_TRACKS:
             key = (track["broker"], track["name"])
             if now >= next_due[key]:
-                run_once(track)
+                try:
+                    run_once(track)
+                except Exception as e:
+                    # One broker being unreachable (e.g. MT5 terminal not
+                    # open) must not take down other tracks/brokers sharing
+                    # this loop -- log and retry at the track's own cadence.
+                    print(f"  ! {track['broker']}:{track['name']} run_once failed: {e}")
                 next_due[key] = now + track["poll_s"]
         time.sleep(TICK_S)

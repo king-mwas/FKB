@@ -58,10 +58,13 @@ def create_signal(session: Session, **fields) -> Signal:
 
 
 def list_signals(session: Session, *, account_id: Optional[int] = None,
+                  symbol: Optional[str] = None,
                   status: Optional[str] = None, limit: int = 100) -> list[Signal]:
     stmt = select(Signal).order_by(Signal.created_at.desc()).limit(limit)
     if account_id is not None:
         stmt = stmt.where(Signal.account_id == account_id)
+    if symbol is not None:
+        stmt = stmt.where(Signal.symbol == symbol)
     if status is not None:
         stmt = stmt.where(Signal.status == status)
     return list(session.execute(stmt).scalars())

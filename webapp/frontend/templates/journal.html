@@ -5,9 +5,9 @@
   {% if entries %}
     {% for e in entries %}
     <div class="card" style="margin-bottom:0.7rem;">
-      <div class="label">{{ e.created_at }}{% if e.trade_id %} · trade #{{ e.trade_id }}{% endif %}</div>
-      {% if e.title %}<h2 style="margin-top:0.4rem;">{{ e.title }}</h2>{% endif %}
-      <div>{{ e.body }}</div>
+      <div class="label mono">{{ e.created_at }}{% if e.trade_id %} · trade #{{ e.trade_id }}{% endif %}</div>
+      {% if e.title %}<h2 style="margin: 0.5rem 0 0.4rem; text-transform: none; letter-spacing: normal; font-size: 1.1rem; color: var(--text);">{{ e.title }}</h2>{% endif %}
+      <div style="margin-top: 0.3rem;">{{ e.body }}</div>
     </div>
     {% endfor %}
   {% else %}

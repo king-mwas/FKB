@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "partials/_macros.html" as m %}
 {% block title %}Trades · FKB{% endblock %}
 {% block content %}
   <h1>Trades</h1>
   {% if trades %}
+  <div class="table-wrap">
   <table>
     <thead>
       <tr><th>Opened</th><th>Symbol</th><th>Dir</th><th>Entry</th><th>SL</th><th>TP</th><th>Status</th><th>PnL</th></tr>
@@ -10,15 +12,18 @@
     <tbody>
       {% for t in trades %}
       <tr>
-        <td>{{ t.opened_at }}</td><td>{{ t.symbol }}</td>
-        <td>{{ "long" if t.direction == 1 else "short" }}</td>
-        <td>{{ t.entry_price }}</td><td>{{ t.sl }}</td><td>{{ t.tp }}</td>
-        <td>{{ t.status }}</td>
-        <td>{{ t.pnl if t.pnl is not none else "—" }}</td>
+        <td class="mono">{{ t.opened_at }}</td><td class="mono">{{ t.symbol }}</td>
+        <td>{{ m.direction_pill(t.direction) }}</td>
+        <td class="mono">{{ t.entry_price }}</td><td class="mono">{{ t.sl }}</td><td class="mono">{{ t.tp }}</td>
+        <td>{{ m.status_chip(t.status) }}</td>
+        <td class="mono {{ 'pos' if t.pnl is not none and t.pnl >= 0 else 'neg' if t.pnl is not none else '' }}">
+          {{ "%.2f"|format(t.pnl) if t.pnl is not none else "—" }}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
     <div class="empty">No trades yet.</div>
   {% endif %}

@@ -1,7 +1,10 @@
 """
-SQLAlchemy engine/session setup. SQLite in WAL mode so the live_engine
-process (writer) and the webapp process (reader, occasional writer) can
-safely access the same file concurrently.
+SQLAlchemy engine/session setup. Postgres (Supabase) when DATABASE_URL is
+set -- lets the live_engine process (writer) and the webapp process
+(reader, occasional writer) share one remote database, browsable directly
+in Supabase's own table editor instead of only through this app. Falls
+back to local SQLite (WAL mode) when DATABASE_URL isn't set yet, so the
+app keeps working before Supabase is wired up.
 """
 
 import os
@@ -10,17 +13,23 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = os.environ.get("FKB_DB_PATH", "./data/fkb.db")
 
-engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
+if DATABASE_URL:
+    # pool_pre_ping: a remote connection (unlike a local SQLite file) can go
+    # stale between polls -- network blip, Supabase's pooler idling it out
+    # -- so check liveness before handing a connection to a query.
+    engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True)
+else:
+    engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
 
-
-@event.listens_for(engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 class Base(DeclarativeBase):
@@ -61,5 +70,6 @@ def get_db():
 def init_db():
     """Create all tables that don't already exist. Non-destructive."""
     import db.models  # noqa: F401  (registers models on Base.metadata)
-    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
+    if not DATABASE_URL:
+        os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     Base.metadata.create_all(engine)
