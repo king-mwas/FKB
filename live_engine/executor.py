@@ -163,7 +163,8 @@ def _execute(session: Session, signal: Signal, setup: PendingSetup,
     try:
         result = mt5_client.place_market_order(
             symbol, plan.direction, lots, plan.sl, plan.tp,
-            deviation=max(1, int(max_slip / spec.pip)), comment=f"FKB {signal.variant}")
+            deviation=config.ORDER_DEVIATION_POINTS, magic=config.EXECUTION_MAGIC,
+            comment=f"FKB {signal.variant}")
     except RuntimeError as e:
         signal.status = "skipped_error"
         signal.confidence_error = f"order_send failed: {e}"
