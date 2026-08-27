@@ -65,7 +65,7 @@ CONFIDENCE_CANDLE_COUNT = 25
 # Spend guard: hard cap on Claude calls per hour, per (broker, track) pair —
 # independent of how many symbols/signals fire, since a busy market could
 # otherwise arm many setups in a short window.
-MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "60"))
+MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "10"))
 CONFIDENCE_TIMEOUT_S = 30.0
 
 MAX_CONCURRENT_PER_SYMBOL = 1
