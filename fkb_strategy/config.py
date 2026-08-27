@@ -26,7 +26,11 @@ SYMBOLS = {
 }
 
 # Binance spot symbols tracked live (see fkb_strategy/data_binance.py).
-BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
+# PAXGUSDT is Paxos Gold -- one token is one fine troy ounce, so it tracks
+# spot gold and is the closest thing to a metals instrument available here.
+# There is no comparable silver market on Binance, so XAGUSD stays an MT5-only
+# symbol until the Windows side is running.
+BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
 
 TF_MAP = {
     "M1": "TIMEFRAME_M1", "M5": "TIMEFRAME_M5", "M15": "TIMEFRAME_M15",

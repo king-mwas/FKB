@@ -27,6 +27,25 @@ TRACKS = [
      "model": "claude-opus-5", "poll_s": 900},
 ]
 
+# Optional subset selection, e.g. TRACKS_ENABLED=binance:swing_position or
+# "binance:scalp_day,binance:swing_position". Unset runs every track above.
+# An unrecognised entry is fatal rather than ignored: a typo that silently
+# filtered every track would leave the engine running, polling nothing, and
+# looking like the strategy simply never fires.
+ALL_KNOWN_TRACKS = list(TRACKS)  # pre-filter, for error messages
+
+_ENABLED = os.environ.get("TRACKS_ENABLED", "").strip()
+if _ENABLED:
+    _want = {p.strip() for p in _ENABLED.split(",") if p.strip()}
+    _known = {f"{t['broker']}:{t['name']}" for t in ALL_KNOWN_TRACKS}
+    _unknown = _want - _known
+    if _unknown:
+        raise ValueError(
+            f"TRACKS_ENABLED names unknown track(s): {sorted(_unknown)}. "
+            f"Valid values: {sorted(_known)}")
+    TRACKS = [t for t in TRACKS if f"{t['broker']}:{t['name']}" in _want]
+
+
 VARIANTS = ["CHOCH_OB", "BOS_OB", "BOS_FVG", "SWEEP_CHOCH_OB"]
 
 SWING_LOOKBACK = 3

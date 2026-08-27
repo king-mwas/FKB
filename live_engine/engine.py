@@ -6,6 +6,7 @@ Confidence scoring (Phase 4) and execution (Phase 5) hook in later without
 changing this poll loop's shape.
 """
 
+import os
 import time
 from datetime import datetime
 
@@ -36,6 +37,20 @@ else:
 MT5_TRACKS = [t for t in config.TRACKS if t["broker"] == "mt5"] if MT5_AVAILABLE else []
 BINANCE_TRACKS = [t for t in config.TRACKS if t["broker"] == "binance"]
 ALL_TRACKS = MT5_TRACKS + BINANCE_TRACKS
+
+# config.py validates TRACKS_ENABLED against all four track names -- it can't
+# know whether MetaTrader5 is importable here. So a selection naming only MT5
+# tracks passes validation there and is emptied by the filter above, leaving an
+# engine that starts, polls nothing, and looks like a strategy that never
+# fires. Nothing legitimately runs zero tracks, so fail loudly instead.
+if not ALL_TRACKS:
+    raise RuntimeError(
+        "No tracks to poll. TRACKS_ENABLED="
+        f"{os.environ.get('TRACKS_ENABLED', '')!r} selected only MT5 tracks, "
+        "and MetaTrader5 is not available on this host (Windows-only). "
+        "Binance tracks available here: "
+        f"{sorted('binance:' + t['name'] for t in config.ALL_KNOWN_TRACKS if t['broker'] == 'binance')}")
+
 TICK_S = 5
 
 # Per-broker: which symbols to poll, how to pre-flight the connection, how
