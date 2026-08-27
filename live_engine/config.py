@@ -87,6 +87,11 @@ CONFIDENCE_CANDLE_COUNT = 25
 MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "10"))
 CONFIDENCE_TIMEOUT_S = 30.0
 
+# ------------------------------------------------------------- telegram
+# Alerts for signals clearing CONFIDENCE_THRESHOLD. Both unset = no alerts.
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
 MAX_CONCURRENT_PER_SYMBOL = 1
 
 # --------------------------------------------------------------- execution
