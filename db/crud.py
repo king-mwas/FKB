@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Optional
 
+import os
+
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +14,23 @@ from db.models import (
     Account, AppSetting, EquitySnapshot, JournalEntry, P2PTransaction,
     Screenshot, Signal, Trade,
 )
+
+
+def setting_or_env(key: str, default: str = "") -> str:
+    """Config value from the app_settings table, falling back to the
+    environment. Lets credentials be pasted into Supabase's table editor from
+    a browser (a phone included) instead of edited into a .env on the host,
+    and picked up without a redeploy. A database blip falls back to .env
+    rather than taking the caller down."""
+    try:
+        from db.base import SessionLocal
+        with SessionLocal() as session:
+            value = get_setting(session, key)
+        if value and value.strip():
+            return value.strip()
+    except Exception as e:
+        print(f"  ! settings lookup for {key} failed ({e}), falling back to env")
+    return os.environ.get(key, default)
 
 
 def _native(fields: dict) -> dict:

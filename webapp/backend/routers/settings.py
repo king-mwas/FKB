@@ -12,7 +12,8 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 # Defense in depth: these stay .env-only (see db/models.py AppSetting
 # docstring). Even if the frontend never sends them, reject them here too
 # so a stray click can never flip an account to live trading.
-FORBIDDEN_KEY_SUBSTRINGS = ("MODE", "ALLOW_LIVE", "API_KEY", "SECRET", "PASSWORD")
+FORBIDDEN_KEY_SUBSTRINGS = ("MODE", "ALLOW_LIVE", "API_KEY", "SECRET",
+                            "PASSWORD", "TOKEN")
 
 REDACTED = "<redacted>"
 

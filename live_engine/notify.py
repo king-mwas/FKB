@@ -18,6 +18,7 @@ import urllib.request
 
 import certifi
 
+from db.crud import setting_or_env
 from live_engine import config
 
 API_URL = "https://api.telegram.org/bot{token}/sendMessage"
@@ -26,8 +27,15 @@ _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _ARROW = {1: "LONG", -1: "SHORT"}
 
 
+def credentials() -> tuple[str, str]:
+    """Resolved per send so a token pasted into Supabase takes effect without
+    restarting the engine."""
+    return (setting_or_env("TELEGRAM_BOT_TOKEN", config.TELEGRAM_BOT_TOKEN),
+            setting_or_env("TELEGRAM_CHAT_ID", config.TELEGRAM_CHAT_ID))
+
+
 def enabled() -> bool:
-    return bool(config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID)
+    return all(credentials())
 
 
 def _format(signal, account) -> str:
@@ -65,15 +73,16 @@ def _format(signal, account) -> str:
 def send_signal(signal, account) -> None:
     """Best-effort. A Telegram outage must not abort the poll pass or leave a
     scored signal unsaved, so every failure is logged and swallowed."""
-    if not enabled():
+    token, chat_id = credentials()
+    if not (token and chat_id):
         return
     payload = urllib.parse.urlencode({
-        "chat_id": config.TELEGRAM_CHAT_ID,
+        "chat_id": chat_id,
         "text": _format(signal, account),
         "parse_mode": "HTML",
         "disable_web_page_preview": "true",
     }).encode()
-    url = API_URL.format(token=config.TELEGRAM_BOT_TOKEN)
+    url = API_URL.format(token=token)
     try:
         req = urllib.request.Request(url, data=payload)
         with urllib.request.urlopen(req, timeout=10, context=_SSL_CONTEXT) as r:

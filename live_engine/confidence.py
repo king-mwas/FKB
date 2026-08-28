@@ -22,7 +22,8 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from db.base import as_utc
-from db.crud import get_setting, list_equity_snapshots, list_trades, set_setting
+from db.crud import (get_setting, list_equity_snapshots, list_trades,
+                     set_setting, setting_or_env)
 from db.models import Account, Signal
 from fkb_strategy import data_binance, data_mt5
 from fkb_strategy.config import SYMBOLS
@@ -80,16 +81,7 @@ def _resolve_api_key() -> str | None:
     redeploy. Falls back to .env when the database is unreachable so a DB
     blip can't take confidence scoring down on a host that has the key
     locally."""
-    try:
-        from db.base import SessionLocal
-        from db.crud import get_setting
-        with SessionLocal() as session:
-            key = get_setting(session, "ANTHROPIC_API_KEY")
-        if key and key.strip():
-            return key.strip()
-    except Exception as e:
-        print(f"  ! confidence: app_settings lookup failed ({e}), using .env")
-    return config.ANTHROPIC_API_KEY
+    return setting_or_env("ANTHROPIC_API_KEY", config.ANTHROPIC_API_KEY)
 
 
 def _client_or_raise() -> anthropic.Anthropic:
