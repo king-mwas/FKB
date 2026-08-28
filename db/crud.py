@@ -30,7 +30,10 @@ def setting_or_env(key: str, default: str = "") -> str:
             return value.strip()
     except Exception as e:
         print(f"  ! settings lookup for {key} failed ({e}), falling back to env")
-    return os.environ.get(key, default)
+    # An empty-but-present variable must not shadow the default: .env.example
+    # ships these keys blank, so os.environ.get(key, default) would return ""
+    # and never reach the fallback.
+    return os.environ.get(key, "").strip() or default
 
 
 def _native(fields: dict) -> dict:
