@@ -3,13 +3,33 @@
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from db.models import (
     Account, AppSetting, EquitySnapshot, JournalEntry, P2PTransaction,
     Screenshot, Signal, Trade,
 )
+
+
+def _native(fields: dict) -> dict:
+    """Coerce numpy scalars to Python built-ins before they reach the driver.
+
+    Detected zones come from pandas frames, so values like zone_top arrive as
+    numpy.float64. SQLite accepts those (numpy.float64 subclasses float), but
+    psycopg2 has no adapter for them and renders the repr into the SQL, which
+    Postgres rejects with InvalidSchemaName: schema "np" does not exist. That
+    makes every signal insert fail on Postgres while passing on the SQLite
+    fallback, so normalise here at the persistence boundary rather than
+    relying on each caller to remember."""
+    out = {}
+    for key, value in fields.items():
+        if isinstance(value, np.generic):
+            value = value.item()
+        out[key] = value
+    return out
 
 
 # ---------------------------------------------------------------- accounts
@@ -20,7 +40,14 @@ def get_or_create_account(session: Session, broker: str, mode: str, label: str) 
     if account is None:
         account = Account(broker=broker, mode=mode, label=label)
         session.add(account)
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            # Another run inserted the same broker+mode between our select and
+            # this flush. The unique constraint is what makes that a losable
+            # race rather than a duplicate row, so take the winner's row.
+            session.rollback()
+            account = session.execute(stmt).scalar_one()
     return account
 
 
@@ -51,7 +78,7 @@ def find_signal_by_fingerprint(session: Session, account_id: int, symbol: str,
 
 
 def create_signal(session: Session, **fields) -> Signal:
-    signal = Signal(**fields)
+    signal = Signal(**_native(fields))
     session.add(signal)
     session.flush()
     return signal

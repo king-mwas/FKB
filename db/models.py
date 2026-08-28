@@ -19,6 +19,13 @@ class Account(Base):
     """One row per broker account we trade/observe: MT5 demo, MT5 live,
     Binance testnet, Binance live, etc."""
     __tablename__ = "accounts"
+    # One row per broker+mode. Without this, two overlapping engine runs (a
+    # cron firing again before the previous finished) can each find no account
+    # and each insert one; get_or_create_account's scalar_one_or_none() then
+    # raises MultipleResultsFound on every subsequent call, permanently
+    # breaking the engine until the duplicate is deleted by hand.
+    __table_args__ = (UniqueConstraint("broker", "mode", name="uq_account_broker_mode"),)
+
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     broker: Mapped[str] = mapped_column(String(16))          # "mt5" | "binance"
