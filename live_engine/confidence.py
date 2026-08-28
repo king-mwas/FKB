@@ -229,7 +229,8 @@ def score_signal(session: Session, signal: Signal, account: Account, model: str)
         signal.confidence_error = str(e)
         session.flush()
         return
-    except (anthropic.APIError, ValidationError, ValueError, RuntimeError) as e:
+    except (ConfidenceError, anthropic.APIError, ValidationError, ValueError,
+            RuntimeError) as e:
         signal.status = "skipped_error"
         signal.confidence_error = f"{type(e).__name__}: {e}"
         session.flush()
