@@ -13,7 +13,7 @@ only scores; execution (Phase 5) reads the resulting status separately.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
 import anthropic
@@ -21,6 +21,7 @@ import pandas as pd
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
+from db.base import as_utc
 from db.crud import get_setting, list_equity_snapshots, list_trades, set_setting
 from db.models import Account, Signal
 from fkb_strategy import data_binance, data_mt5
@@ -167,10 +168,10 @@ def _trade_preview(signal: Signal) -> Optional[str]:
 
 
 def _account_context(session: Session, account: Account) -> str:
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     trades_today = sum(
         1 for t in list_trades(session, account_id=account.id, limit=200)
-        if t.opened_at >= today
+        if as_utc(t.opened_at) >= today
     )
     snapshots = list_equity_snapshots(session, account_id=account.id, limit=500)
     peak_equity = max((s.equity for s in snapshots), default=account.equity)
