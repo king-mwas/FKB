@@ -7,14 +7,28 @@ sizing rules. Edit here, not in individual scripts.
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
 class AccountSpec:
-    """Per-symbol trading spec: pip size, typical spread, contract size."""
+    """Per-symbol trading spec: pip size, typical spread, contract size.
+
+    The optional fields exist because crypto and MT5 forex price risk
+    differently. MT5 costs are a spread plus COMMISSION_PER_LOT; a Binance
+    spot fill costs a percentage of notional on each side, which at BTC
+    prices dwarfs the spread and cannot be expressed as one. Lot conventions
+    differ just as much -- MT5's 0.01-lot minimum is meaningless against a
+    0.00001 BTC minimum. Left as None, each falls back to the module-level
+    MT5 default below, so forex specs are unaffected."""
     pip: float
     spread_pips: float
     contract: float
+    fee_pct: float = 0.0                        # per-side % of notional
+    min_lot: Optional[float] = None
+    lot_step: Optional[float] = None
+    max_lot: Optional[float] = None
+    cent_account: Optional[bool] = None
 
 
 # Your broker's symbol names. Check exactly how they appear in MT5 Market
@@ -31,6 +45,28 @@ SYMBOLS = {
 # There is no comparable silver market on Binance, so XAGUSD stays an MT5-only
 # symbol until the Windows side is running.
 BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
+
+# Backtest specs for the Binance spot pairs above.
+#
+# ESTIMATES -- verify before trusting any backtest built on them. Confirm
+# tick size and minimum quantity against
+# https://api.binance.com/api/v3/exchangeInfo?symbol=BTCUSDT (the LOT_SIZE
+# and PRICE_FILTER entries), and fee_pct against your own account's fee tier
+# on Binance's fee schedule. 0.1% is the standard spot taker rate; holding
+# BNB or reaching a higher VIP tier lowers it, and a wrong fee rate biases
+# every result. spread_pips is a typical quiet-market figure and will be
+# optimistic during volatility -- PAXG's book is much thinner than BTC's.
+BINANCE_SPECS = {
+    "BTCUSDT": AccountSpec(
+        pip=1.0, spread_pips=2.0, contract=1.0, fee_pct=0.1,
+        min_lot=0.00001, lot_step=0.00001, max_lot=100.0, cent_account=False),
+    "ETHUSDT": AccountSpec(
+        pip=0.1, spread_pips=5.0, contract=1.0, fee_pct=0.1,
+        min_lot=0.0001, lot_step=0.0001, max_lot=1000.0, cent_account=False),
+    "PAXGUSDT": AccountSpec(
+        pip=0.1, spread_pips=20.0, contract=1.0, fee_pct=0.1,
+        min_lot=0.0001, lot_step=0.0001, max_lot=1000.0, cent_account=False),
+}
 
 TF_MAP = {
     "M1": "TIMEFRAME_M1", "M5": "TIMEFRAME_M5", "M15": "TIMEFRAME_M15",
