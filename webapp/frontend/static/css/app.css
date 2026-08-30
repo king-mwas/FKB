@@ -180,3 +180,19 @@ tbody tr:last-child td { border-bottom: none; }
   .topbar { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
   .content { padding: 1.25rem 1rem 2.5rem; }
 }
+
+
+/* ---- login ---------------------------------------------------------- */
+.login-body { display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 1.5rem; }
+.login-card { width: 100%; max-width: 22rem; }
+.login-card .brand { font-size: 2rem; margin-bottom: 1.25rem; text-align: center; }
+.login-card form { display: flex; flex-direction: column; gap: .5rem; }
+.login-card label { font-size: .8rem; text-transform: uppercase;
+  letter-spacing: .06em; opacity: .7; }
+.login-card input { padding: .7rem .8rem; font: inherit; border-radius: 6px; }
+.login-card button { padding: .7rem 1rem; font: inherit; font-weight: 600;
+  border: 0; border-radius: 6px; cursor: pointer; margin-top: .4rem; }
+.login-error { margin: .2rem 0 0; font-size: .85rem; color: #d2544a; }
+.topbar-right { display: flex; align-items: center; gap: .9rem; }
+.logout { font-size: .85rem; opacity: .7; }

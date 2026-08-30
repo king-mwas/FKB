@@ -13,7 +13,7 @@ only scores; execution (Phase 5) reads the resulting status separately.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
 import anthropic
@@ -21,7 +21,9 @@ import pandas as pd
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
-from db.crud import get_setting, list_equity_snapshots, list_trades, set_setting
+from db.base import as_utc
+from db.crud import (get_setting, list_equity_snapshots, list_trades,
+                     set_setting, setting_or_env)
 from db.models import Account, Signal
 from fkb_strategy import data_binance, data_mt5
 from fkb_strategy.config import SYMBOLS
@@ -31,6 +33,7 @@ from live_engine import config
 LOADERS = {"mt5": data_mt5.load_recent, "binance": data_binance.load_recent}
 
 _client: Optional[anthropic.Anthropic] = None
+_client_key: Optional[str] = None
 
 
 class ConfidenceResult(BaseModel):
@@ -71,12 +74,28 @@ Respond only with your structured judgment. Put any hedging or doubt in \
 `concerns`, not in `reasoning` disclaimers."""
 
 
+def _resolve_api_key() -> str | None:
+    """The Anthropic key, preferring the `app_settings` row in the database
+    over .env. That lets the key be pasted straight into Supabase's table
+    editor instead of onto the host's filesystem, and picked up without a
+    redeploy. Falls back to .env when the database is unreachable so a DB
+    blip can't take confidence scoring down on a host that has the key
+    locally."""
+    return setting_or_env("ANTHROPIC_API_KEY", config.ANTHROPIC_API_KEY)
+
+
 def _client_or_raise() -> anthropic.Anthropic:
-    global _client
-    if not config.ANTHROPIC_API_KEY:
-        raise ConfidenceError("ANTHROPIC_API_KEY not set in .env")
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    global _client, _client_key
+    key = _resolve_api_key()
+    if not key:
+        raise ConfidenceError(
+            "No Anthropic API key. Set ANTHROPIC_API_KEY in the app_settings "
+            "table (Supabase) or in .env.")
+    # Rebuild when the key changes so pasting a new one into Supabase takes
+    # effect on the next scored signal, without restarting the engine.
+    if _client is None or _client_key != key:
+        _client = anthropic.Anthropic(api_key=key)
+        _client_key = key
     return _client
 
 
@@ -141,10 +160,10 @@ def _trade_preview(signal: Signal) -> Optional[str]:
 
 
 def _account_context(session: Session, account: Account) -> str:
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     trades_today = sum(
         1 for t in list_trades(session, account_id=account.id, limit=200)
-        if t.opened_at >= today
+        if as_utc(t.opened_at) >= today
     )
     snapshots = list_equity_snapshots(session, account_id=account.id, limit=500)
     peak_equity = max((s.equity for s in snapshots), default=account.equity)
@@ -203,7 +222,8 @@ def score_signal(session: Session, signal: Signal, account: Account, model: str)
         signal.confidence_error = str(e)
         session.flush()
         return
-    except (anthropic.APIError, ValidationError, ValueError, RuntimeError) as e:
+    except (ConfidenceError, anthropic.APIError, ValidationError, ValueError,
+            RuntimeError) as e:
         signal.status = "skipped_error"
         signal.confidence_error = f"{type(e).__name__}: {e}"
         session.flush()

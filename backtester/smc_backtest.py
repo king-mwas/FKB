@@ -38,15 +38,23 @@ import numpy as np
 import pandas as pd
 
 from fkb_strategy.config import (
-    COMMISSION_PER_LOT, CENT_ACCOUNT, LOT_STEP, MAX_LOT, MIN_LOT,
-    RISK_PER_TRADE_PCT, STARTING_BALANCE, SYMBOLS,
+    BINANCE_SPECS, COMMISSION_PER_LOT, CENT_ACCOUNT, LOT_STEP, MAX_LOT,
+    MIN_LOT, RISK_PER_TRADE_PCT, STARTING_BALANCE, SYMBOLS,
 )
-from fkb_strategy.data_mt5 import load
+from fkb_strategy import data_binance, data_mt5
 from fkb_strategy.setups import arm_setup, build_trade_plan, check_fill
 from fkb_strategy.sizing import position_size
 from fkb_strategy.structure import Structure, find_swings
 
 YEARS_OF_HISTORY = 3
+
+# Which market to sweep. mt5 needs Windows with a logged-in terminal; binance
+# pulls public klines over HTTP and so runs anywhere, which is the only way to
+# backtest without that terminal. Both loaders take (symbol, timeframe, years).
+MARKETS = {
+    "mt5": (SYMBOLS, data_mt5.load),
+    "binance": (BINANCE_SPECS, data_binance.load),
+}
 
 # ══════════════════════════════════════════════════════════════════
 # STRATEGY PARAMETERS TO SWEEP
@@ -94,6 +102,12 @@ def backtest(ltf_df: pd.DataFrame, htf_df: pd.DataFrame, spec, params: dict) -> 
 
     spread = spec.spread_pips * spec.pip
 
+    # Per-symbol overrides where set, else the module-level MT5 defaults.
+    cent = CENT_ACCOUNT if spec.cent_account is None else spec.cent_account
+    min_lot = MIN_LOT if spec.min_lot is None else spec.min_lot
+    lot_step = LOT_STEP if spec.lot_step is None else spec.lot_step
+    max_lot = MAX_LOT if spec.max_lot is None else spec.max_lot
+
     for i in range(len(df)):
         row = df.iloc[i]
         ts = df.index[i]
@@ -114,11 +128,18 @@ def backtest(ltf_df: pd.DataFrame, htf_df: pd.DataFrame, spec, params: dict) -> 
                 exit_price = open_pos["tp"]
 
             if exit_price is not None:
-                contract = (spec.contract / 100.0 if CENT_ACCOUNT
-                            else spec.contract)
+                contract = spec.contract / 100.0 if cent else spec.contract
                 pnl = ((exit_price - open_pos["entry"]) * open_pos["dir"]
                        * open_pos["lots"] * contract)
                 pnl -= COMMISSION_PER_LOT * open_pos["lots"]
+                if spec.fee_pct:
+                    # Charged on notional at each side, not once on the
+                    # position: a percentage fee is the dominant cost on a
+                    # Binance spot round trip and is what makes small-move
+                    # setups unprofitable there.
+                    qty = open_pos["lots"] * contract
+                    pnl -= ((open_pos["entry"] + exit_price) * qty
+                            * spec.fee_pct / 100.0)
                 equity += pnl
                 trades.append({
                     "time": ts, "dir": open_pos["dir"], "pnl": pnl,
@@ -150,11 +171,10 @@ def backtest(ltf_df: pd.DataFrame, htf_df: pd.DataFrame, spec, params: dict) -> 
                 if plan:
                     lots = position_size(
                         equity, RISK_PER_TRADE_PCT, plan.stop_distance, spec,
-                        cent_account=CENT_ACCOUNT, min_lot=MIN_LOT,
-                        lot_step=LOT_STEP, max_lot=MAX_LOT)
+                        cent_account=cent, min_lot=min_lot,
+                        lot_step=lot_step, max_lot=max_lot)
                     if lots > 0:
-                        contract = (spec.contract / 100.0 if CENT_ACCOUNT
-                                    else spec.contract)
+                        contract = spec.contract / 100.0 if cent else spec.contract
                         open_pos = {
                             "dir": plan.direction, "entry": plan.entry,
                             "sl": plan.sl, "tp": plan.tp, "lots": lots,
@@ -200,15 +220,19 @@ def summarize(trades, equity, max_dd, df, skipped, params) -> dict:
 # SWEEP RUNNER
 # ══════════════════════════════════════════════════════════════════
 
-def run():
+def run(market: str = "mt5"):
+    if market not in MARKETS:
+        raise SystemExit(f"Unknown market {market!r}. Choose from {sorted(MARKETS)}.")
+    symbols, load = MARKETS[market]
+
     keys = list(SWEEP.keys())
     combos = [dict(zip(keys, v)) for v in itertools.product(*SWEEP.values())]
-    print(f"Testing {len(combos)} combos x {len(SYMBOLS)} symbols "
-          f"= {len(combos) * len(SYMBOLS)} backtests\n")
+    print(f"Market: {market}. Testing {len(combos)} combos x {len(symbols)} "
+          f"symbols = {len(combos) * len(symbols)} backtests\n")
 
     cache, results = {}, []
 
-    for symbol, spec in SYMBOLS.items():
+    for symbol, spec in symbols.items():
         for idx, params in enumerate(combos, 1):
             try:
                 for tf in (params["ltf"], params["htf"]):
@@ -217,6 +241,7 @@ def run():
                 res = backtest(cache[(symbol, params["ltf"])],
                                cache[(symbol, params["htf"])], spec, params)
                 res["symbol"] = symbol
+                res["market"] = market
                 results.append(res)
             except Exception as e:
                 print(f"  ! {symbol} {params['variant']}: {e}")
@@ -224,7 +249,11 @@ def run():
                 print(f"  {symbol}: {idx}/{len(combos)}")
 
     if not results:
-        print("\nNo results. Check MT5 is open and symbol names are exact.")
+        if market == "mt5":
+            print("\nNo results. Check MT5 is open and symbol names are exact.")
+        else:
+            print("\nNo results. Check the Binance symbols are valid spot "
+                  "markets and that api.binance.com is reachable.")
         return
 
     out = pd.DataFrame(results)
@@ -270,7 +299,12 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+    ap = argparse.ArgumentParser(description="FKB SMC parameter sweep")
+    ap.add_argument("--market", default="mt5", choices=sorted(MARKETS),
+                    help="mt5 needs a running Windows terminal; binance "
+                         "pulls public klines and runs anywhere")
+    run(ap.parse_args().market)
 
 
 # ══════════════════════════════════════════════════════════════════

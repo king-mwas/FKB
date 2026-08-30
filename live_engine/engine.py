@@ -6,32 +6,57 @@ Confidence scoring (Phase 4) and execution (Phase 5) hook in later without
 changing this poll loop's shape.
 """
 
+import os
 import time
 from datetime import datetime
 
 from db.base import get_session
 from db.crud import get_or_create_account, set_setting
 from fkb_strategy.config import BINANCE_SYMBOLS, SYMBOLS
-from live_engine import binance_client, config, executor, mt5_client
+from live_engine import binance_client, config, notify
 from live_engine.confidence import score_signal
 from live_engine.detector import poll_track
 
-MT5_TRACKS = [t for t in config.TRACKS if t["broker"] == "mt5"]
+# MetaTrader5 ships Windows-only wheels and drives a local MT5 terminal, so
+# the MT5 tracks simply cannot run on a Linux host. Binance is plain REST and
+# can, so probe for the package and drop the MT5 tracks when it's absent
+# rather than refusing to start at all -- that's what lets the crypto half of
+# the engine run 24/7 on a Linux server. The probe is on MetaTrader5 itself,
+# not on the imports below, so a genuine ImportError inside executor.py or
+# mt5_client.py still surfaces loudly on Windows instead of silently
+# disabling forex.
+try:
+    import MetaTrader5  # noqa: F401
+except ImportError:
+    MT5_AVAILABLE = False
+    executor = mt5_client = None
+else:
+    MT5_AVAILABLE = True
+    from live_engine import executor, mt5_client
+
+MT5_TRACKS = [t for t in config.TRACKS if t["broker"] == "mt5"] if MT5_AVAILABLE else []
 BINANCE_TRACKS = [t for t in config.TRACKS if t["broker"] == "binance"]
 ALL_TRACKS = MT5_TRACKS + BINANCE_TRACKS
+
+# config.py validates TRACKS_ENABLED against all four track names -- it can't
+# know whether MetaTrader5 is importable here. So a selection naming only MT5
+# tracks passes validation there and is emptied by the filter above, leaving an
+# engine that starts, polls nothing, and looks like a strategy that never
+# fires. Nothing legitimately runs zero tracks, so fail loudly instead.
+if not ALL_TRACKS:
+    raise RuntimeError(
+        "No tracks to poll. TRACKS_ENABLED="
+        f"{os.environ.get('TRACKS_ENABLED', '')!r} selected only MT5 tracks, "
+        "and MetaTrader5 is not available on this host (Windows-only). "
+        "Binance tracks available here: "
+        f"{sorted('binance:' + t['name'] for t in config.ALL_KNOWN_TRACKS if t['broker'] == 'binance')}")
+
 TICK_S = 5
 
 # Per-broker: which symbols to poll, how to pre-flight the connection, how
 # to sync the account row's balance/equity, and the (mode, label) for
 # get_or_create_account. Keeps run_once broker-agnostic.
 _BROKER = {
-    "mt5": {
-        "symbols": SYMBOLS,
-        "ensure_connected": mt5_client.ensure_connected,
-        "account_summary": mt5_client.account_summary,
-        "mode": lambda: config.MT5_MODE,
-        "label": lambda: f"MT5 {config.MT5_MODE}",
-    },
     "binance": {
         "symbols": BINANCE_SYMBOLS,
         "ensure_connected": binance_client.ensure_connected,
@@ -40,6 +65,15 @@ _BROKER = {
         "label": lambda: f"Binance {config.BINANCE_MODE}",
     },
 }
+
+if MT5_AVAILABLE:
+    _BROKER["mt5"] = {
+        "symbols": SYMBOLS,
+        "ensure_connected": mt5_client.ensure_connected,
+        "account_summary": mt5_client.account_summary,
+        "mode": lambda: config.MT5_MODE,
+        "label": lambda: f"MT5 {config.MT5_MODE}",
+    }
 
 
 def run_once(track: dict) -> int:
@@ -89,6 +123,7 @@ def run_once(track: dict) -> int:
                 if sig.status == "confidence_pass":
                     print(f"    -> confidence {sig.confidence_score} (PASS, threshold "
                           f"{config.CONFIDENCE_THRESHOLD})")
+                    notify.send_signal(sig, account)
                 elif sig.confidence_score is not None:
                     print(f"    -> confidence {sig.confidence_score} (below threshold)")
                 else:
@@ -109,6 +144,9 @@ def run_once(track: dict) -> int:
 
 
 def main_loop():
+    if not MT5_AVAILABLE:
+        print("FKB live engine: MetaTrader5 unavailable on this host -- "
+              "running Binance tracks only, forex tracks disabled.")
     print(f"FKB live engine starting. MT5_MODE={config.MT5_MODE} "
           f"BINANCE_MODE={config.BINANCE_MODE} "
           f"tracks={[(t['broker'], t['name']) for t in ALL_TRACKS]}")
