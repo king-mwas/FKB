@@ -70,25 +70,29 @@ def _format(signal, account) -> str:
     return "\n".join(lines)
 
 
-def send_signal(signal, account) -> None:
-    """Best-effort. A Telegram outage must not abort the poll pass or leave a
-    scored signal unsaved, so every failure is logged and swallowed."""
+def send_message(text: str) -> bool:
+    """Post one HTML message. Best-effort: a Telegram outage must never abort
+    the caller (a poll pass, an announcement sweep), so every failure is
+    logged and swallowed. Returns whether it was accepted, so callers that
+    track delivery -- e.g. only marking an announcement seen once it actually
+    reached the phone -- can tell."""
     token, chat_id = credentials()
     if not (token and chat_id):
-        return
+        return False
     payload = urllib.parse.urlencode({
         "chat_id": chat_id,
-        "text": _format(signal, account),
+        "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": "true",
     }).encode()
-    url = API_URL.format(token=token)
     try:
-        req = urllib.request.Request(url, data=payload)
+        req = urllib.request.Request(API_URL.format(token=token), data=payload)
         with urllib.request.urlopen(req, timeout=10, context=_SSL_CONTEXT) as r:
             body = json.loads(r.read())
         if not body.get("ok"):
             print(f"  ! telegram rejected the message: {body}")
+            return False
+        return True
     except urllib.error.HTTPError as e:
         # Telegram puts the actual reason (bad chat_id, bot blocked, ...) in
         # the body, not the status line -- printing only the status would make
@@ -96,3 +100,8 @@ def send_signal(signal, account) -> None:
         print(f"  ! telegram HTTP {e.code}: {e.read()[:200]!r}")
     except Exception as e:
         print(f"  ! telegram send failed: {type(e).__name__}: {e}")
+    return False
+
+
+def send_signal(signal, account) -> None:
+    send_message(_format(signal, account))
