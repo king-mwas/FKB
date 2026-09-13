@@ -92,6 +92,14 @@ CONFIDENCE_TIMEOUT_S = 30.0
 # before any JSON is emitted. Scoring one setup against the rubric in
 # SYSTEM_PROMPT is a bounded judgement, so "medium" is the default here --
 # lower it to "low" to cut spend further, raise it if scores look careless.
+# Only setups on the most recent few LTF bars are worth paying to score. A
+# rolling window of ROLLING_LTF_BARS is loaded every poll, so on a fresh
+# database every historical setup in it looks new -- 500 H4 bars is ~83 days,
+# which produced 89 signals on one first run, all of them long dead. Older
+# ones are still recorded (so they dedupe and never resurface) but skipped
+# before the API call.
+SIGNAL_MAX_AGE_BARS = int(os.environ.get("SIGNAL_MAX_AGE_BARS", "3"))
+
 CONFIDENCE_EFFORT = os.environ.get("CONFIDENCE_EFFORT", "medium")
 
 # Ceiling, not an allocation: only tokens actually generated are billed, so

@@ -10,7 +10,7 @@ import os
 import time
 from datetime import datetime
 
-from db.base import get_session
+from db.base import as_utc, get_session
 from db.crud import get_or_create_account, set_setting
 from fkb_strategy.config import BINANCE_SYMBOLS, SYMBOLS
 from live_engine import binance_client, config, notify
@@ -107,7 +107,21 @@ def run_once(track: dict) -> int:
                 continue
 
             total_new += len(new_signals)
+
+            # Anything older than the last few bars is history, not a trade.
+            # Recording it still matters -- that is what stops it being
+            # re-detected next poll -- but scoring it would spend real money
+            # on a zone the market resolved days ago.
+            cutoff = (ltf_df.index[-config.SIGNAL_MAX_AGE_BARS]
+                      if len(ltf_df) >= config.SIGNAL_MAX_AGE_BARS else ltf_df.index[0])
+            stale = 0
+
             for sig in new_signals:
+                if as_utc(sig.bar_time) < as_utc(cutoff.to_pydatetime()):
+                    sig.status = "skipped_stale"
+                    session.flush()
+                    stale += 1
+                    continue
                 print(f"[{track['name']}] {symbol} {sig.variant} {sig.event_kind} "
                       f"dir={sig.direction:+d} bar={sig.bar_time} "
                       f"zone=({sig.zone_bottom:.5f},{sig.zone_top:.5f})")
@@ -128,6 +142,11 @@ def run_once(track: dict) -> int:
                     print(f"    -> confidence {sig.confidence_score} (below threshold)")
                 else:
                     print(f"    -> confidence scoring skipped: {sig.confidence_error}")
+
+            if stale:
+                print(f"  {track['name']} {symbol}: {stale} historical setup(s) "
+                      f"recorded but not scored (older than "
+                      f"{config.SIGNAL_MAX_AGE_BARS} {track['ltf']} bars)")
 
             # Execution (Phase 5) is MT5-only for now -- see executor.py's
             # module docstring for why Binance stays inert here.
