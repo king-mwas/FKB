@@ -16,6 +16,7 @@ import urllib.request
 
 import certifi
 
+from db.crud import setting_or_env
 from live_engine import config
 
 BASE_URL = ("https://testnet.binance.vision" if config.BINANCE_MODE == "testnet"
@@ -28,14 +29,23 @@ BASE_URL = ("https://testnet.binance.vision" if config.BINANCE_MODE == "testnet"
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
+def credentials() -> tuple[str, str]:
+    """Read-only key/secret, resolved per call so they can be pasted into
+    Supabase rather than edited into a .env on the host."""
+    mode = config.BINANCE_MODE.upper()
+    return (setting_or_env(f"BINANCE_API_KEY_{mode}", config.BINANCE_API_KEY or ""),
+            setting_or_env(f"BINANCE_API_SECRET_{mode}", config.BINANCE_API_SECRET or ""))
+
+
 def _signed_get(path: str, params: dict = None) -> dict:
     params = dict(params or {})
     params["timestamp"] = int(time.time() * 1000)
     query = urllib.parse.urlencode(params)
-    sig = hmac.new(config.BINANCE_API_SECRET.encode(), query.encode(),
+    api_key, api_secret = credentials()
+    sig = hmac.new(api_secret.encode(), query.encode(),
                     hashlib.sha256).hexdigest()
     url = f"{BASE_URL}{path}?{query}&signature={sig}"
-    req = urllib.request.Request(url, headers={"X-MBX-APIKEY": config.BINANCE_API_KEY})
+    req = urllib.request.Request(url, headers={"X-MBX-APIKEY": api_key})
     with urllib.request.urlopen(req, timeout=15, context=_SSL_CONTEXT) as r:
         return json.loads(r.read())
 
@@ -58,7 +68,7 @@ def account_summary() -> dict:
     """Returns zeros (no error) when BINANCE_API_KEY_<mode> / _SECRET_<mode>
     aren't set in .env yet -- only needed for balance display, not
     detection."""
-    if not (config.BINANCE_API_KEY and config.BINANCE_API_SECRET):
+    if not all(credentials()):
         return {"balance": 0.0, "equity": 0.0, "margin": 0.0}
     data = _signed_get("/api/v3/account")
     usdt = next((b for b in data.get("balances", []) if b["asset"] == "USDT"), None)

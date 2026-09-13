@@ -27,6 +27,25 @@ TRACKS = [
      "model": "claude-opus-5", "poll_s": 900},
 ]
 
+# Optional subset selection, e.g. TRACKS_ENABLED=binance:swing_position or
+# "binance:scalp_day,binance:swing_position". Unset runs every track above.
+# An unrecognised entry is fatal rather than ignored: a typo that silently
+# filtered every track would leave the engine running, polling nothing, and
+# looking like the strategy simply never fires.
+ALL_KNOWN_TRACKS = list(TRACKS)  # pre-filter, for error messages
+
+_ENABLED = os.environ.get("TRACKS_ENABLED", "").strip()
+if _ENABLED:
+    _want = {p.strip() for p in _ENABLED.split(",") if p.strip()}
+    _known = {f"{t['broker']}:{t['name']}" for t in ALL_KNOWN_TRACKS}
+    _unknown = _want - _known
+    if _unknown:
+        raise ValueError(
+            f"TRACKS_ENABLED names unknown track(s): {sorted(_unknown)}. "
+            f"Valid values: {sorted(_known)}")
+    TRACKS = [t for t in TRACKS if f"{t['broker']}:{t['name']}" in _want]
+
+
 VARIANTS = ["CHOCH_OB", "BOS_OB", "BOS_FVG", "SWEEP_CHOCH_OB"]
 
 SWING_LOOKBACK = 3
@@ -65,8 +84,34 @@ CONFIDENCE_CANDLE_COUNT = 25
 # Spend guard: hard cap on Claude calls per hour, per (broker, track) pair —
 # independent of how many symbols/signals fire, since a busy market could
 # otherwise arm many setups in a short window.
-MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "60"))
+MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "10"))
 CONFIDENCE_TIMEOUT_S = 30.0
+
+# Thinking depth for the scoring call. The API default is "high", which on
+# Sonnet 5 / Opus 5 spends most of a small max_tokens budget on reasoning
+# before any JSON is emitted. Scoring one setup against the rubric in
+# SYSTEM_PROMPT is a bounded judgement, so "medium" is the default here --
+# lower it to "low" to cut spend further, raise it if scores look careless.
+# Only setups on the most recent few LTF bars are worth paying to score. A
+# rolling window of ROLLING_LTF_BARS is loaded every poll, so on a fresh
+# database every historical setup in it looks new -- 500 H4 bars is ~83 days,
+# which produced 89 signals on one first run, all of them long dead. Older
+# ones are still recorded (so they dedupe and never resurface) but skipped
+# before the API call.
+SIGNAL_MAX_AGE_BARS = int(os.environ.get("SIGNAL_MAX_AGE_BARS", "3"))
+
+CONFIDENCE_EFFORT = os.environ.get("CONFIDENCE_EFFORT", "medium")
+
+# Ceiling, not an allocation: only tokens actually generated are billed, so
+# headroom is free. It must cover thinking AND the JSON, because thinking
+# counts against it -- at 1024 the reasoning consumed the budget and the
+# structured output was truncated mid-string, failing schema validation.
+CONFIDENCE_MAX_TOKENS = int(os.environ.get("CONFIDENCE_MAX_TOKENS", "8192"))
+
+# ------------------------------------------------------------- telegram
+# Alerts for signals clearing CONFIDENCE_THRESHOLD. Both unset = no alerts.
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 MAX_CONCURRENT_PER_SYMBOL = 1
 

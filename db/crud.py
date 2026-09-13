@@ -3,13 +3,55 @@
 from datetime import datetime
 from typing import Optional
 
+import os
+
+import numpy as np
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from db.models import (
     Account, AppSetting, EquitySnapshot, JournalEntry, P2PTransaction,
     Screenshot, Signal, Trade,
 )
+
+
+def setting_or_env(key: str, default: str = "") -> str:
+    """Config value from the app_settings table, falling back to the
+    environment. Lets credentials be pasted into Supabase's table editor from
+    a browser (a phone included) instead of edited into a .env on the host,
+    and picked up without a redeploy. A database blip falls back to .env
+    rather than taking the caller down."""
+    try:
+        from db.base import SessionLocal
+        with SessionLocal() as session:
+            value = get_setting(session, key)
+        if value and value.strip():
+            return value.strip()
+    except Exception as e:
+        print(f"  ! settings lookup for {key} failed ({e}), falling back to env")
+    # An empty-but-present variable must not shadow the default: .env.example
+    # ships these keys blank, so os.environ.get(key, default) would return ""
+    # and never reach the fallback.
+    return os.environ.get(key, "").strip() or default
+
+
+def _native(fields: dict) -> dict:
+    """Coerce numpy scalars to Python built-ins before they reach the driver.
+
+    Detected zones come from pandas frames, so values like zone_top arrive as
+    numpy.float64. SQLite accepts those (numpy.float64 subclasses float), but
+    psycopg2 has no adapter for them and renders the repr into the SQL, which
+    Postgres rejects with InvalidSchemaName: schema "np" does not exist. That
+    makes every signal insert fail on Postgres while passing on the SQLite
+    fallback, so normalise here at the persistence boundary rather than
+    relying on each caller to remember."""
+    out = {}
+    for key, value in fields.items():
+        if isinstance(value, np.generic):
+            value = value.item()
+        out[key] = value
+    return out
 
 
 # ---------------------------------------------------------------- accounts
@@ -20,7 +62,14 @@ def get_or_create_account(session: Session, broker: str, mode: str, label: str) 
     if account is None:
         account = Account(broker=broker, mode=mode, label=label)
         session.add(account)
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            # Another run inserted the same broker+mode between our select and
+            # this flush. The unique constraint is what makes that a losable
+            # race rather than a duplicate row, so take the winner's row.
+            session.rollback()
+            account = session.execute(stmt).scalar_one()
     return account
 
 
@@ -51,7 +100,7 @@ def find_signal_by_fingerprint(session: Session, account_id: int, symbol: str,
 
 
 def create_signal(session: Session, **fields) -> Signal:
-    signal = Signal(**fields)
+    signal = Signal(**_native(fields))
     session.add(signal)
     session.flush()
     return signal
