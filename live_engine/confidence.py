@@ -107,10 +107,13 @@ def _call_claude(model: str, user_content: str) -> ConfidenceResult:
         timeout=config.CONFIDENCE_TIMEOUT_S, max_retries=2,
     ).messages.parse(
         model=model,
-        max_tokens=1024,
+        max_tokens=config.CONFIDENCE_MAX_TOKENS,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
         output_format=ConfidenceResult,
+        # The SDK merges this with the schema it derives from output_format,
+        # so setting effort here does not disturb structured output.
+        output_config={"effort": config.CONFIDENCE_EFFORT},
     )
     return response.parsed_output
 

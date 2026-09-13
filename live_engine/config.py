@@ -87,6 +87,19 @@ CONFIDENCE_CANDLE_COUNT = 25
 MAX_CONFIDENCE_CALLS_PER_HOUR = int(os.environ.get("MAX_CONFIDENCE_CALLS_PER_HOUR", "10"))
 CONFIDENCE_TIMEOUT_S = 30.0
 
+# Thinking depth for the scoring call. The API default is "high", which on
+# Sonnet 5 / Opus 5 spends most of a small max_tokens budget on reasoning
+# before any JSON is emitted. Scoring one setup against the rubric in
+# SYSTEM_PROMPT is a bounded judgement, so "medium" is the default here --
+# lower it to "low" to cut spend further, raise it if scores look careless.
+CONFIDENCE_EFFORT = os.environ.get("CONFIDENCE_EFFORT", "medium")
+
+# Ceiling, not an allocation: only tokens actually generated are billed, so
+# headroom is free. It must cover thinking AND the JSON, because thinking
+# counts against it -- at 1024 the reasoning consumed the budget and the
+# structured output was truncated mid-string, failing schema validation.
+CONFIDENCE_MAX_TOKENS = int(os.environ.get("CONFIDENCE_MAX_TOKENS", "8192"))
+
 # ------------------------------------------------------------- telegram
 # Alerts for signals clearing CONFIDENCE_THRESHOLD. Both unset = no alerts.
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
