@@ -13,7 +13,11 @@ Run: python -m live_engine.run           (loops forever, per-track cadence)
 import sys
 
 from db.base import init_db
-from live_engine.engine import ALL_TRACKS, main_loop, run_once
+
+# live_engine.engine is imported lazily inside main(), not here. It pulls in
+# confidence.py and therefore the anthropic package, which the announcement
+# sweep has no use for -- importing it at module scope made --announcements
+# fail with ModuleNotFoundError on a host that only needs the watcher.
 
 
 def main():
@@ -25,6 +29,8 @@ def main():
         from live_engine.announcements import check
         print(f"announcement sweep: {check()} alert(s) sent")
         return
+
+    from live_engine.engine import ALL_TRACKS, main_loop, run_once
     if "--once" in sys.argv:
         for track in ALL_TRACKS:
             try:
