@@ -26,7 +26,7 @@ from db.crud import (get_setting, list_equity_snapshots, list_trades,
                      set_setting, setting_or_env)
 from db.models import Account, Signal
 from fkb_strategy import data_binance, data_mt5
-from fkb_strategy.config import SYMBOLS
+from fkb_strategy.config import BINANCE_SPECS, SYMBOLS
 from fkb_strategy.setups import PendingSetup, build_trade_plan
 from live_engine import config
 
@@ -143,9 +143,13 @@ def _check_rate_limit(session: Session, track_name: str, broker: str) -> None:
 def _trade_preview(signal: Signal) -> Optional[str]:
     """Best-effort entry/SL/TP/RR preview built from the signal's zone,
     using the symbol's AccountSpec if one is configured. Returns None for
-    symbols with no spec yet (e.g. Binance pairs -- sizing/spec work is
-    Phase 8) rather than guessing at pip/spread values."""
-    spec = SYMBOLS.get(signal.symbol)
+    symbols with no spec at all, rather than guessing at pip/spread values.
+
+    Checks both symbol tables. Binance pairs previously matched neither, so
+    every crypto setup reached the model with "Trade plan preview:
+    unavailable" -- asking a risk-averse analyst to judge a trade without
+    showing it the risk:reward, which can only push scores down."""
+    spec = SYMBOLS.get(signal.symbol) or BINANCE_SPECS.get(signal.symbol)
     if spec is None:
         return None
     pending = PendingSetup(
