@@ -21,10 +21,15 @@ TRACKS = [
      "model": "claude-sonnet-5", "poll_s": 60},
     {"name": "swing_position", "broker": "mt5", "htf": "D1", "ltf": "H4",
      "model": "claude-opus-5", "poll_s": 900},
+    # session_filter off for crypto: in_session() encodes London/New York
+    # forex hours, and arm_setup DROPS any setup outside them. Binance never
+    # closes, so applying it discarded roughly ten hours of every day --
+    # the whole Asia session, which moves crypto -- for a reason that only
+    # holds where liquidity actually goes home at night.
     {"name": "scalp_day", "broker": "binance", "htf": "H4", "ltf": "M15",
-     "model": "claude-sonnet-5", "poll_s": 60},
+     "model": "claude-sonnet-5", "poll_s": 60, "session_filter": False},
     {"name": "swing_position", "broker": "binance", "htf": "D1", "ltf": "H4",
-     "model": "claude-opus-5", "poll_s": 900},
+     "model": "claude-opus-5", "poll_s": 900, "session_filter": False},
 ]
 
 # Optional subset selection, e.g. TRACKS_ENABLED=binance:swing_position or
