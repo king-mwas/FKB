@@ -220,10 +220,16 @@ def summarize(trades, equity, max_dd, df, skipped, params) -> dict:
 # SWEEP RUNNER
 # ══════════════════════════════════════════════════════════════════
 
-def run(market: str = "mt5"):
+def run(market: str = "mt5", years: float = YEARS_OF_HISTORY,
+        only_symbol: str = None):
     if market not in MARKETS:
         raise SystemExit(f"Unknown market {market!r}. Choose from {sorted(MARKETS)}.")
     symbols, load = MARKETS[market]
+    if only_symbol:
+        if only_symbol not in symbols:
+            raise SystemExit(f"{only_symbol!r} not in {market}. "
+                             f"Available: {sorted(symbols)}")
+        symbols = {only_symbol: symbols[only_symbol]}
 
     keys = list(SWEEP.keys())
     combos = [dict(zip(keys, v)) for v in itertools.product(*SWEEP.values())]
@@ -237,7 +243,7 @@ def run(market: str = "mt5"):
             try:
                 for tf in (params["ltf"], params["htf"]):
                     if (symbol, tf) not in cache:
-                        cache[(symbol, tf)] = load(symbol, tf, YEARS_OF_HISTORY)
+                        cache[(symbol, tf)] = load(symbol, tf, years)
                 res = backtest(cache[(symbol, params["ltf"])],
                                cache[(symbol, params["htf"])], spec, params)
                 res["symbol"] = symbol
@@ -304,7 +310,14 @@ if __name__ == "__main__":
     ap.add_argument("--market", default="mt5", choices=sorted(MARKETS),
                     help="mt5 needs a running Windows terminal; binance "
                          "pulls public klines and runs anywhere")
-    run(ap.parse_args().market)
+    ap.add_argument("--years", type=float, default=YEARS_OF_HISTORY,
+                    help="years of history (default %(default)s). The full "
+                         "sweep scans ~315k M5 bars per symbol per combo at "
+                         "3 years, which takes hours -- use 1 while iterating")
+    ap.add_argument("--symbol", default=None,
+                    help="restrict to one symbol, e.g. BTCUSDT")
+    a = ap.parse_args()
+    run(a.market, a.years, a.symbol)
 
 
 # ══════════════════════════════════════════════════════════════════
