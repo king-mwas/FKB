@@ -63,7 +63,7 @@ MARKETS = {
 SWEEP = {
     "variant": ["CHOCH_OB", "BOS_OB", "BOS_FVG", "SWEEP_CHOCH_OB"],
     "htf": ["H4", "D1"],              # bias timeframe
-    "ltf": ["M15", "M5"],             # entry timeframe
+    "ltf": ["H4", "M15", "M5"],       # entry timeframe
     "swing_lookback": [3, 5],         # fractal strength
     "rr": [2.0, 3.0, 5.0],            # risk:reward target
     "session_filter": [True, False],  # London + NY only
@@ -74,6 +74,16 @@ SWEEP = {
 # ══════════════════════════════════════════════════════════════════
 # BACKTEST ENGINE
 # ══════════════════════════════════════════════════════════════════
+
+# Coarsest last. Used only to reject combos whose entry timeframe is not
+# strictly faster than its bias timeframe -- htf == ltf would derive the bias
+# from the very series it is filtering, which tests nothing.
+_TF_ORDER = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
+
+
+def _valid_combo(params: dict) -> bool:
+    return _TF_ORDER.index(params["ltf"]) < _TF_ORDER.index(params["htf"])
+
 
 def backtest(ltf_df: pd.DataFrame, htf_df: pd.DataFrame, spec, params: dict) -> dict:
     df = find_swings(ltf_df, params["swing_lookback"])
@@ -233,6 +243,11 @@ def run(market: str = "mt5", years: float = YEARS_OF_HISTORY,
 
     keys = list(SWEEP.keys())
     combos = [dict(zip(keys, v)) for v in itertools.product(*SWEEP.values())]
+    invalid = len(combos)
+    combos = [c for c in combos if _valid_combo(c)]
+    invalid -= len(combos)
+    if invalid:
+        print(f"({invalid} combos skipped: entry timeframe not faster than bias)")
     print(f"Market: {market}. Testing {len(combos)} combos x {len(symbols)} "
           f"symbols = {len(combos) * len(symbols)} backtests\n")
 
