@@ -21,15 +21,18 @@ TRACKS = [
      "model": "claude-sonnet-5", "poll_s": 60},
     {"name": "swing_position", "broker": "mt5", "htf": "D1", "ltf": "H4",
      "model": "claude-opus-5", "poll_s": 900},
-    # session_filter off for crypto: in_session() encodes London/New York
-    # forex hours, and arm_setup DROPS any setup outside them. Binance never
-    # closes, so applying it discarded roughly ten hours of every day --
-    # the whole Asia session, which moves crypto -- for a reason that only
-    # holds where liquidity actually goes home at night.
+    # session_filter stays on for Binance despite the market trading 24/7.
+    # Turning it off was the obvious call -- Binance never closes, so London
+    # and New York hours look arbitrary -- and a 3-year BTCUSDT sweep says
+    # otherwise. Same combo (CHOCH_OB, D1 bias, H4 entry, rr 2.0): filter on
+    # gave 84 trades at +0.78%/month with 17.5% drawdown, filter off gave 105
+    # trades at +0.85% with 22.7%. More trades and marginally more return, at
+    # meaningfully worse risk-adjusted return. Tracks accept a session_filter
+    # key if a future measurement changes that.
     {"name": "scalp_day", "broker": "binance", "htf": "H4", "ltf": "M15",
-     "model": "claude-sonnet-5", "poll_s": 60, "session_filter": False},
+     "model": "claude-sonnet-5", "poll_s": 60},
     {"name": "swing_position", "broker": "binance", "htf": "D1", "ltf": "H4",
-     "model": "claude-opus-5", "poll_s": 900, "session_filter": False},
+     "model": "claude-opus-5", "poll_s": 900},
 ]
 
 # Optional subset selection, e.g. TRACKS_ENABLED=binance:swing_position or
@@ -54,6 +57,10 @@ if _ENABLED:
 VARIANTS = ["CHOCH_OB", "BOS_OB", "BOS_FVG", "SWEEP_CHOCH_OB"]
 
 SWING_LOOKBACK = 3
+# Kept at 2.0 on measurement, not habit. A 1-year BTCUSDT sweep put rr 3.0
+# well ahead (+2.53%/month vs +0.54%), but over 3 years rr 2.0 produced the
+# best risk-adjusted result (+0.78%/month, 47.6% win rate, 17.5% drawdown)
+# and rr 3.0 fell back. The 1-year lead was the overfitting premium.
 DEFAULT_RR = 2.0
 SESSION_FILTER = True
 REQUIRE_HTF_ALIGN = True
