@@ -92,6 +92,12 @@ def run_once(track: dict) -> int:
         account.equity = info["equity"]
         account.margin_used = info["margin"]
         account.last_synced_at = datetime.utcnow()
+        # Commit the account before polling. A per-symbol rollback below would
+        # otherwise discard it too on a fresh database -- it is created in this
+        # same transaction -- and every later symbol would then fail on a
+        # foreign key to an account that no longer exists. Committing here also
+        # means the balance sync survives a rollback rather than being redone.
+        session.commit()
 
         if broker == "mt5":
             try:
@@ -104,6 +110,18 @@ def run_once(track: dict) -> int:
                 new_signals, ltf_df = poll_track(session, account.id, track, symbol)
             except Exception as e:
                 print(f"  ! {track['name']} {symbol}: {e}")
+                # A dropped connection leaves the session in a failed
+                # transaction, and every later statement on it raises "Can't
+                # reconnect until invalid transaction is rolled back" -- so
+                # continuing without this turns one symbol's blip into a dead
+                # poll pass for all of them. Rolling back discards this pass's
+                # uncommitted balance sync, which is display data refreshed on
+                # the next poll anyway.
+                try:
+                    session.rollback()
+                except Exception as rb:
+                    print(f"  ! rollback also failed: {rb}")
+                    raise
                 continue
 
             total_new += len(new_signals)

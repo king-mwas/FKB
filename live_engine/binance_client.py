@@ -41,6 +41,11 @@ def credentials() -> tuple[str, str]:
 def _signed_get(path: str, params: dict = None) -> dict:
     params = dict(params or {})
     params["timestamp"] = int(time.time() * 1000)
+    # Binance rejects a signed request whose timestamp falls outside recvWindow
+    # of ITS clock (error -1021), and Windows clocks drift. The default is
+    # 5000ms; widening it tolerates ordinary drift. It does not fix a badly
+    # wrong clock -- that needs an actual time sync on the host.
+    params["recvWindow"] = config.BINANCE_RECV_WINDOW_MS
     query = urllib.parse.urlencode(params)
     api_key, api_secret = credentials()
     sig = hmac.new(api_secret.encode(), query.encode(),

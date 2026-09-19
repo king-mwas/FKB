@@ -83,6 +83,10 @@ MT5_SERVER = os.environ.get(f"MT5_SERVER_{MT5_MODE.upper()}")
 BINANCE_MODE = os.environ.get("BINANCE_MODE", "testnet")  # testnet | live
 ALLOW_LIVE_BINANCE_TRADING = os.environ.get("ALLOW_LIVE_BINANCE_TRADING", "false").lower() == "true"
 
+# Tolerance for host-vs-Binance clock difference on signed requests, in ms.
+# Binance's own default is 5000 and its ceiling is 60000.
+BINANCE_RECV_WINDOW_MS = int(os.environ.get("BINANCE_RECV_WINDOW_MS", "20000"))
+
 BINANCE_API_KEY = os.environ.get(f"BINANCE_API_KEY_{BINANCE_MODE.upper()}")
 BINANCE_API_SECRET = os.environ.get(f"BINANCE_API_SECRET_{BINANCE_MODE.upper()}")
 
