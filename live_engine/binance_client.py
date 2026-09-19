@@ -11,6 +11,7 @@ import hmac
 import json
 import ssl
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -46,8 +47,16 @@ def _signed_get(path: str, params: dict = None) -> dict:
                     hashlib.sha256).hexdigest()
     url = f"{BASE_URL}{path}?{query}&signature={sig}"
     req = urllib.request.Request(url, headers={"X-MBX-APIKEY": api_key})
-    with urllib.request.urlopen(req, timeout=15, context=_SSL_CONTEXT) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=15, context=_SSL_CONTEXT) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        # Binance returns the real reason as {"code":-1021,"msg":"..."} in the
+        # body; the status line is always a bare "400 Bad Request". Without
+        # this, a clock-skew rejection, a revoked key and an IP restriction
+        # all look identical and none of them are actionable.
+        raise RuntimeError(
+            f"Binance {path} -> HTTP {e.code}: {e.read().decode()[:300]}") from e
 
 
 def ensure_connected():
@@ -64,13 +73,24 @@ def ensure_connected():
         print(f"  ! binance_client.ensure_connected: {e}")
 
 
+ZERO_BALANCE = {"balance": 0.0, "equity": 0.0, "margin": 0.0}
+
+
 def account_summary() -> dict:
-    """Returns zeros (no error) when BINANCE_API_KEY_<mode> / _SECRET_<mode>
-    aren't set in .env yet -- only needed for balance display, not
-    detection."""
+    """Balance for display. Never raises: this is a nicety, and detection --
+    which runs off the public klines endpoint and needs no key at all -- must
+    not stop because a signed balance read was rejected. ensure_connected()
+    above is non-fatal for the same reason; this one was not, so a single 400
+    from /api/v3/account aborted the entire poll pass before any symbol was
+    examined, and the loop reported only "HTTP Error 400: Bad Request"."""
     if not all(credentials()):
-        return {"balance": 0.0, "equity": 0.0, "margin": 0.0}
-    data = _signed_get("/api/v3/account")
+        return dict(ZERO_BALANCE)
+    try:
+        data = _signed_get("/api/v3/account")
+    except Exception as e:
+        print(f"  ! binance_client.account_summary: {e}")
+        print("    (balance display only -- detection continues)")
+        return dict(ZERO_BALANCE)
     usdt = next((b for b in data.get("balances", []) if b["asset"] == "USDT"), None)
     balance = float(usdt["free"]) + float(usdt["locked"]) if usdt else 0.0
     return {"balance": balance, "equity": balance, "margin": 0.0}
