@@ -120,8 +120,18 @@ def run_once(track: dict) -> int:
                 try:
                     session.rollback()
                 except Exception as rb:
-                    print(f"  ! rollback also failed: {rb}")
-                    raise
+                    # rollback speaks to the server, so it cannot work when the
+                    # connection is already gone -- which is exactly the case
+                    # that got us here. invalidate() discards the dead
+                    # connection without talking to it, and the session checks
+                    # out a fresh one on next use. That detaches the account,
+                    # so reload it; if the network is still down this raises
+                    # and the pass ends, which is the right outcome.
+                    print(f"  ! rollback failed ({rb}); discarding dead connection")
+                    session.invalidate()
+                    account = get_or_create_account(
+                        session, broker=broker, mode=b["mode"](),
+                        label=b["label"]())
                 continue
 
             total_new += len(new_signals)
