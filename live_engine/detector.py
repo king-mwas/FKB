@@ -78,7 +78,8 @@ def poll_track(session: Session, account_id: int, track: dict, symbol: str) -> t
 
             params = {
                 "variant": variant,
-                "session_filter": config.SESSION_FILTER,
+                "session_filter": track.get("session_filter",
+                                            config.SESSION_FILTER),
                 "require_htf_align": config.REQUIRE_HTF_ALIGN,
             }
             pending = arm_setup((kind, direction), ltf_swings, i, ts, bias_at_i, params)

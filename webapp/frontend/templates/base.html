@@ -22,7 +22,10 @@
         <a href="/p2p" class="{{ 'active' if request.url.path == '/p2p' else '' }}">P2P</a>
       </nav>
     </div>
-    <span id="engine-badge" hx-get="/partials/health" hx-trigger="load, every 10s" hx-swap="innerHTML"></span>
+    <div class="topbar-right">
+      <span id="engine-badge" hx-get="/partials/health" hx-trigger="load, every 10s" hx-swap="innerHTML"></span>
+      <a href="/logout" class="logout">Sign out</a>
+    </div>
   </header>
   <main class="content">
     {% block content %}{% endblock %}

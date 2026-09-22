@@ -8,6 +8,7 @@ app keeps working before Supabase is wired up.
 """
 
 import os
+from datetime import timezone
 from contextlib import contextmanager
 
 from dotenv import load_dotenv
@@ -45,6 +46,22 @@ class Base(DeclarativeBase):
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+def as_utc(dt):
+    """Normalise a datetime read back from the database to aware UTC.
+
+    The two backends disagree: Postgres returns DateTime(timezone=True)
+    columns as timezone-AWARE, SQLite returns them naive. Comparing one
+    against a locally-built datetime therefore works on SQLite and raises
+    TypeError on Postgres -- a class of bug that cannot be reproduced on the
+    SQLite fallback the app defaults to. Route every read-then-compare
+    through this so both backends behave the same."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 @contextmanager
